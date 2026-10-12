@@ -9,7 +9,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 const PORT = process.env.PORT || 3000;
 const MAX_PEOPLE = 8;
-const randomQueue = [];
+const randomQueue = [];\nconst lastChatMessageAt = new Map();
 
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/health", (_req, res) => res.status(200).send("ok"));
@@ -76,6 +76,23 @@ io.on("connection", (socket) => {
     removeFromRandomQueue(socket);
     socket.data.randomChat = false;
     socket.emit("random-cancelled");
+  });
+
+  socket.on("chat-message", ({ text } = {}) => {
+    if (!socket.data.room || typeof text !== "string") return;
+    const cleanText = text.trim().slice(0, 500);
+    if (!cleanText) return;
+    const now = Date.now();
+    const last = lastChatMessageAt.get(socket.id) || 0;
+    if (now - last < 700) return;
+    lastChatMessageAt.set(socket.id, now);
+    const members = io.sockets.adapter.rooms.get(socket.data.room);
+    if (!members) return;
+    io.to(socket.data.room).emit("chat-message", {
+      from: socket.id,
+      text: cleanText,
+      sentAt: now
+    });
   });
 
   socket.on("signal", ({ to, data } = {}) => {
