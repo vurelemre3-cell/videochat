@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: videomeet
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
