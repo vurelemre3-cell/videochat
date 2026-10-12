@@ -115,13 +115,7 @@ button{border:0;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:
     const requestedRoom = roomInput.value.trim().toUpperCase();
     if (!requestedRoom) { say("Vul eerst een kamercode in."); return; }
     joinBtn.disabled = true; status.textContent = "Camera starten…";
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-      localVideo.srcObject = localStream; localPlaceholder.classList.add("hidden");
-    } catch (err) {
-      say("Geen toegang tot camera/microfoon. Geef toestemming in je browser en probeer opnieuw.");
-      status.textContent = "Toestemming nodig"; joinBtn.disabled = false; return;
-    }
+    if (!await ensureMedia()) { joinBtn.disabled = false; return; }
     socket.emit("join-room", requestedRoom, async result => {
       if (!result || !result.ok) {
         say((result && result.error) || "De kamer kon niet worden geopend.");
@@ -140,6 +134,7 @@ button{border:0;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:
     if (localStream) { localStream.getTracks().forEach(t=>t.stop()); localStream=null; }
     localVideo.srcObject=null; localPlaceholder.classList.remove("hidden");
     callArea.classList.add("hidden"); joinForm.classList.remove("hidden");
+    $("nextRandomBtn").classList.add("hidden"); $("randomBtn").disabled=false; randomMode=false;
     joinBtn.disabled=false; status.textContent="Klaar om te starten"; roomCode=""; say("");
   }
   joinBtn.addEventListener("click", join);\n  $("randomBtn").addEventListener("click", startRandom);\n  $("nextRandomBtn").addEventListener("click", nextRandom);
