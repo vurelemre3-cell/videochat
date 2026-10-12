@@ -9,7 +9,8 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 const PORT = process.env.PORT || 3000;
 const MAX_PEOPLE = 8;
-const randomQueue = [];\nconst lastChatMessageAt = new Map();
+const randomQueue = [];
+const lastChatMessageAt = new Map();
 
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/health", (_req, res) => res.status(200).send("ok"));
