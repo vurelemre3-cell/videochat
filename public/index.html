@@ -54,7 +54,7 @@ button{border:0;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:
     let tile = document.getElementById("tile-" + id);
     if (tile) return tile;
     tile = document.createElement("div"); tile.className = "tile"; tile.id = "tile-" + id;
-    const video = document.createElement("video"); video.autoplay = true; video.playsInline = true; video.id = "video-" + id;
+    const video = document.createElement("video"); video.autoplay = true; video.playsInline = true; video.muted = true; video.id = "video-" + id; video.title = "Klik op de video om geluid aan of uit te zetten"; video.addEventListener("click", () => { video.muted = !video.muted; say(video.muted ? "Geluid van de andere persoon staat uit. Klik op de video voor geluid." : "Geluid van de andere persoon staat aan."); });
     const placeholder = document.createElement("div"); placeholder.className = "placeholder"; placeholder.id = "placeholder-" + id;
     const avatar = document.createElement("div"); avatar.className = "avatar"; avatar.textContent = "V";
     const label = document.createElement("span"); label.textContent = "Deelnemer";
@@ -76,13 +76,31 @@ button{border:0;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:
     pc.onicecandidate = event => {
       if (event.candidate) socket.emit("signal", {to:id, data:{candidate:event.candidate}});
     };
-    pc.ontrack = event => {
+    pc.ontrack = async event => {
       const video = $("video-" + id);
-      if (video && event.streams[0]) {
-        video.srcObject = event.streams[0];
-        video.play().catch(() => {});
+      if (!video) return;
+      // Some browsers provide no event.streams[0]; build a stream from the received track.
+      const remoteStream = event.streams && event.streams[0]
+        ? event.streams[0]
+        : new MediaStream([event.track]);
+      video.srcObject = remoteStream;
+      video.muted = true; // Muted autoplay is allowed by more browsers; click video to enable sound.
+      try {
+        await video.play();
         $("placeholder-" + id).classList.add("hidden");
+        say("");
+      } catch (err) {
+        console.warn("Remote video playback failed:", err);
+        say("De verbinding is er, maar de video speelt niet af. Klik op het videovak om af te spelen.");
       }
+      event.track.addEventListener("unmute", async () => {
+        try {
+          await video.play();
+          $("placeholder-" + id).classList.add("hidden");
+        } catch (err) {
+          console.warn("Remote video playback retry failed:", err);
+        }
+      });
     };
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "connected") {
