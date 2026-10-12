@@ -137,7 +137,9 @@ button{border:0;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:
     $("nextRandomBtn").classList.add("hidden"); $("randomBtn").disabled=false; randomMode=false;
     joinBtn.disabled=false; status.textContent="Klaar om te starten"; roomCode=""; say("");
   }
-  joinBtn.addEventListener("click", join);\n  $("randomBtn").addEventListener("click", startRandom);\n  $("nextRandomBtn").addEventListener("click", nextRandom);
+  joinBtn.addEventListener("click", join);
+  $("randomBtn").addEventListener("click", startRandom);
+  $("nextRandomBtn").addEventListener("click", nextRandom);
   roomInput.addEventListener("keydown", e => { if (e.key === "Enter") join(); });
   $("micBtn").addEventListener("click", () => {
     if (!localStream) return; micOn=!micOn; localStream.getAudioTracks().forEach(t=>t.enabled=micOn);
