@@ -26,13 +26,13 @@ button{border:0;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:
 <main>
 <section class="intro"><h1>Praat face-to-face.</h1><p>Maak een kamer aan of deel een kamercode. Tot 8 deelnemers.</p></section>
 <section class="panel">
-<div class="join" id="joinForm"><input id="roomInput" maxlength="24" placeholder="Kamercode, bijvoorbeeld VRIENDEN12" autocomplete="off"><button id="joinBtn">Start videogesprek</button></div>
+<div class="join" id="joinForm"><input id="roomInput" maxlength="24" placeholder="Kamercode, bijvoorbeeld VRIENDEN12" autocomplete="off"><button id="joinBtn">Start videogesprek</button><button id="randomBtn" class="secondary">🎲 Random chat</button></div>
 <div id="message"></div>
 <div id="callArea" class="hidden">
 <div class="grid" id="videos">
 <div class="tile" id="localTile"><video id="localVideo" autoplay playsinline muted></video><div class="placeholder" id="localPlaceholder"><div class="avatar">J</div><span>Jij</span></div><div class="name">Jij (camera)</div></div>
 </div>
-<div class="controls"><button class="secondary" id="micBtn">🎙️ Microfoon uit</button><button class="secondary" id="cameraBtn">📷 Camera uit</button><button class="secondary" id="copyBtn">Kopieer kamercode</button><button class="danger" id="leaveBtn">Gesprek verlaten</button></div>
+<div class="controls"><button class="secondary" id="micBtn">🎙️ Microfoon uit</button><button class="secondary" id="cameraBtn">📷 Camera uit</button><button class="secondary" id="copyBtn">Kopieer kamercode</button><button class="secondary hidden" id="nextRandomBtn">⏭️ Volgende persoon</button><button class="danger" id="leaveBtn">Gesprek verlaten</button></div>
 <div class="hint">Deel de kamercode met anderen. Geef je browser toestemming voor camera en microfoon.</div>
 </div>
 </section>
@@ -45,7 +45,7 @@ button{border:0;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:
   const joinForm = $("joinForm"), joinBtn = $("joinBtn"), roomInput = $("roomInput");
   const callArea = $("callArea"), message = $("message"), status = $("status");
   const localVideo = $("localVideo"), localPlaceholder = $("localPlaceholder"), videos = $("videos");
-  let localStream = null, roomCode = "", micOn = true, cameraOn = true;
+  let localStream = null, roomCode = "", micOn = true, cameraOn = true, randomMode = false;
   const peers = new Map();
   const pcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] };
 
@@ -80,6 +80,36 @@ button{border:0;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:
     if (offerer) pc.createOffer().then(offer => pc.setLocalDescription(offer)).then(() => socket.emit("signal", {to:id,data:{description:pc.localDescription}})).catch(console.error);
     return pc;
   }
+  async function ensureMedia() {
+    if (localStream) return true;
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+      localVideo.srcObject = localStream; localPlaceholder.classList.add("hidden");
+      return true;
+    } catch (err) {
+      say("Geen toegang tot camera/microfoon. Geef toestemming in je browser en probeer opnieuw.");
+      status.textContent = "Toestemming nodig";
+      return false;
+    }
+  }
+  async function startRandom() {
+    say("Gebruik random chat alleen als je je daar prettig bij voelt. Deel geen persoonlijke gegevens.");
+    joinBtn.disabled = true; $("randomBtn").disabled = true;
+    status.textContent = "Camera starten…";
+    if (!await ensureMedia()) { joinBtn.disabled = false; $("randomBtn").disabled = false; return; }
+    randomMode = true;
+    $("nextRandomBtn").classList.remove("hidden");
+    joinForm.classList.add("hidden"); callArea.classList.remove("hidden");
+    status.textContent = "Zoeken naar iemand…";
+    socket.emit("random-next");
+  }
+  function nextRandom() {
+    for (const id of [...peers.keys()]) removePeer(id);
+    roomCode = "";
+    status.textContent = "Zoeken naar iemand nieuw…";
+    say("Even zoeken naar de volgende persoon…");
+    socket.emit("random-next");
+  }
   async function join() {
     say("");
     const requestedRoom = roomInput.value.trim().toUpperCase();
@@ -112,7 +142,7 @@ button{border:0;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:
     callArea.classList.add("hidden"); joinForm.classList.remove("hidden");
     joinBtn.disabled=false; status.textContent="Klaar om te starten"; roomCode=""; say("");
   }
-  joinBtn.addEventListener("click", join);
+  joinBtn.addEventListener("click", join);\n  $("randomBtn").addEventListener("click", startRandom);\n  $("nextRandomBtn").addEventListener("click", nextRandom);
   roomInput.addEventListener("keydown", e => { if (e.key === "Enter") join(); });
   $("micBtn").addEventListener("click", () => {
     if (!localStream) return; micOn=!micOn; localStream.getAudioTracks().forEach(t=>t.enabled=micOn);
@@ -128,8 +158,20 @@ button{border:0;border-radius:12px;padding:12px 16px;font-size:14px;font-weight:
     catch { say("Kamercode: " + roomCode); }
   });
   $("leaveBtn").addEventListener("click", leave);
+  socket.on("random-waiting", () => { status.textContent = "Zoeken naar iemand…"; say("Je staat in de wachtrij. We verbinden je zodra iemand beschikbaar is."); });
+  socket.on("random-matched", ({room, peer, offerer}) => {
+    roomCode = room;
+    status.textContent = "Random videochat · verbonden";
+    say("Je bent verbonden met iemand nieuw. Deel geen persoonlijke gegevens.");
+    newPeer(peer, offerer);
+  });
+  socket.on("random-cancelled", () => { status.textContent = "Zoeken gestopt"; });
   socket.on("peer-joined", ({id}) => { status.textContent = "Kamer " + roomCode + " · " + (peers.size + 2) + "/8 deelnemers"; say("Er neemt iemand deel aan de kamer."); });
-  socket.on("peer-left", id => { removePeer(id); status.textContent = "Kamer " + roomCode + " · " + (peers.size + 1) + "/8 deelnemers"; });
+  socket.on("peer-left", id => {
+    removePeer(id);
+    if (randomMode) { status.textContent = "De ander heeft de chat verlaten"; say("Klik op ‘Volgende persoon’ om opnieuw te zoeken."); }
+    else status.textContent = "Kamer " + roomCode + " · " + (peers.size + 1) + "/8 deelnemers";
+  });
   socket.on("signal", async ({from, data}) => {
     try {
       const pc = newPeer(from, false);
