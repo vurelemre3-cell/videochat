@@ -1,0 +1,14 @@
+{
+  "name": "videochat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Room-based video calling for up to 8 participants",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}
